@@ -11,22 +11,21 @@ JS_HEADER = '''
 <script type='text/javascript' src='http://ajax.googleapis.com/ajax/libs/jquery/1.6.4/jquery.min.js'></script>
 <script type='text/javascript'>
 function pollServer(){
+    console.log('pollServer');
     $.ajax({
         type: 'POST',
         url: '.',
         async: true,
-        timeout: 0,
+        timeout: 50000,
         success: function(data) {
-            setTimeout('pollServer()', 1000)
+            window.location.reload();
         },
         error: function(req, status, err) {
-            window.location.reload()
+            pollServer();
         }
     });
 }
-$(document).ready(function(){
-    pollServer()
-});
+pollServer()
 </script>
 </head>
 '''
@@ -61,26 +60,25 @@ class RSTHandler(BaseHTTPRequestHandler):
 
     def log_message(self, *args): pass
 
-    def do_GET(self):
-        self._reload = False
+    def send_headers(self):
         self.send_response(200)
         self.send_header('Content-type', 'text-plain')
         self.end_headers()
+
+    def do_GET(self):
+        self.send_headers()
         with open(self.source) as src:
-            _stdout = sys.stdout
-            sys.stdout = null
+            _stdout, sys.stdout = sys.stdout, null
             body = publish_file(source=src, writer_name='html')
             sys.stdout = _stdout
             body = body.replace('</head>', JS_HEADER)
             self.wfile.write(body)
 
     def do_POST(self):
-        status = 400 if self._reload else 200
+        self.send_headers()
+        while True:
+            if RSTHandler._reload: break
         RSTHandler._reload = False
-        self.send_response(status)
-        self.send_header('Content-type', 'text-plain')
-        self.end_headers()
-        self.wfile.write('')
 
 if __name__ == '__main__':
     source = sys.argv[1]
